@@ -1,0 +1,6 @@
+/* Production-only entry point for Tailwind's compiler (PostCSS, via Vite).
+   The zero-build preview.html gets equivalent utilities from the Tailwind
+   Play CDN instead — see preview.html for that config. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

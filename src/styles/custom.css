@@ -1,0 +1,239 @@
+/* ============================================================================
+   CUSTOM CSS — everything Tailwind utilities don't cover: fonts, tokens,
+   the grain overlay, custom cursor, scrollbar, selection, and keyframes.
+   Loaded via a plain <link> tag in BOTH index.html (prod) and preview.html
+   (zero-build), so it must stay framework-agnostic — no @tailwind directives
+   here, that's tailwind.css's job.
+   ============================================================================ */
+
+@import url('https://api.fontshare.com/v2/css?f[]=general-sans@300,400,500,600,700&display=swap');
+/* Fraunces: elegant, characterful display serif — used for the Hero name
+   (roman) and inline single-word accents (italic) throughout. Chosen over
+   the more ubiquitous Instrument Serif for a more niche, boutique feel. */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&display=swap');
+
+/* Preloader signature face — self-hosted, not CDN-linked like the rest.
+   Bodoni Moda is a modern-day revival of Bodoni's original didone: the exact
+   extreme thick/thin contrast and ball terminals behind the "quiet luxury" /
+   "old money" editorial look referenced in Styleguide/Fontstyle.png — the
+   register fashion mastheads reach for (Bodoni's own type was Vogue's for
+   decades). Swapped in for the earlier handwritten script, which read as
+   twee rather than expensive. Self-hosted (two ~50KB latin-subset variable
+   files, roman + italic, SIL Open Font License — free for commercial use)
+   rather than another Google Fonts @import: one less third-party request,
+   and this is the one face on the page worth owning outright rather than
+   borrowing at runtime. Each file is variable across the full weight axis,
+   so the exact weight is a CSS value (see .preloader-display), not a
+   separate download. */
+@font-face {
+  font-family: 'Bodoni Moda';
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('/fonts/BodoniModa-Variable.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Bodoni Moda';
+  font-style: italic;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('/fonts/BodoniModa-Italic-Variable.woff2') format('woff2');
+}
+
+:root {
+  --bg: #15120e;
+  --bg-raised: #1c1712;
+  --bg-panel: #241d16;
+  --ink: #f4f1ea;
+  --ink-dim: rgba(244, 241, 234, 0.62);
+  --ink-faint: rgba(244, 241, 234, 0.38);
+  --khaki: #937c5c;
+  --khaki-bright: #c2b7a1;
+  --walnut: #5a3f2b;
+  --walnut-bright: #866246;
+  --hairline: rgba(244, 241, 234, 0.12);
+  --ease-cinematic: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+  scroll-behavior: auto; /* Lenis owns smooth-scroll; avoid double-smoothing */
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'General Sans', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--khaki-bright);
+  color: #15120e;
+}
+
+/* Custom scrollbar — webkit + firefox */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(244, 241, 234, 0.14);
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--khaki-dim, rgba(147, 124, 92, 0.5));
+}
+html {
+  scrollbar-color: rgba(244, 241, 234, 0.16) var(--bg);
+  scrollbar-width: thin;
+}
+
+:focus-visible {
+  outline: 1.5px solid var(--khaki-bright);
+  outline-offset: 3px;
+}
+
+/* ---- Film grain overlay -----------------------------------------------
+   Fixed, full-viewport, ~4% opacity SVG turbulence noise for cinematic
+   depth. Pure CSS, no image asset, no runtime cost beyond one paint layer. */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.045;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---- Custom cursor ------------------------------------------------------
+   Positioned via transform in a RAF loop (see hooks/useCursor logic inside
+   App.jsx) — CSS here only handles appearance, not motion. Disabled on
+   touch devices and under prefers-reduced-motion (App.jsx skips rendering
+   it entirely in those cases; this rule is the belt-and-suspenders match). */
+.has-custom-cursor,
+.has-custom-cursor a,
+.has-custom-cursor button {
+  cursor: none;
+}
+
+.cursor-dot,
+.cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 70;
+  will-change: transform;
+  border-radius: 999px;
+  transform: translate3d(-50%, -50%, 0);
+}
+
+.cursor-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--khaki-bright);
+}
+
+.cursor-ring {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(194, 183, 161, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--khaki-bright);
+  background: rgba(147, 124, 92, 0.14);
+  backdrop-filter: blur(2px);
+  transition: width 0.35s var(--ease-cinematic), height 0.35s var(--ease-cinematic),
+    background 0.35s var(--ease-cinematic), border-color 0.35s var(--ease-cinematic);
+}
+
+/* ---- Atmospheric grid ----------------------------------------------------
+   Faint structural layer behind the hero's gradient blobs — one more depth
+   cue under the drifting light, barely-there so it reads as texture rather
+   than a grid. */
+.atmo-grid {
+  background-image:
+    linear-gradient(rgba(244, 241, 234, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(244, 241, 234, 0.05) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 0%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 0%, transparent 75%);
+}
+
+/* ---- Preloader signature ---------------------------------------------
+   Bold display-optical-size Bodoni — sizing itself is set with Tailwind
+   utilities on the element (responsive), not fixed here. */
+.preloader-display {
+  font-family: 'Bodoni Moda', 'Fraunces', Georgia, serif;
+  font-weight: 700;
+  font-optical-sizing: auto;
+  letter-spacing: -0.01em;
+}
+
+/* ---- Glass panel ("liquid glass") ---------------------------------------
+   A real frosted-glass material, not a faint tint: 15-30% translucency,
+   strong blur+saturate, and a specular highlight in the top-left corner
+   plus an inset rim (bright top edge, dark bottom edge) so the panel reads
+   as glass catching light, not just a semi-see-through box. The green
+   whisper is the one place the "botanical" half of the palette shows up
+   outside the two ambient hero blobs. */
+.glass-panel {
+  background:
+    radial-gradient(140% 120% at 12% -10%, rgba(244, 241, 234, 0.22), transparent 45%),
+    linear-gradient(160deg, rgba(61, 93, 75, 0.14), rgba(244, 241, 234, 0.06));
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(244, 241, 234, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(244, 241, 234, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* ---- Keyframes ----------------------------------------------------------*/
+@keyframes drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(4%, -6%, 0) scale(1.08); }
+}
+@keyframes drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-5%, 5%, 0) scale(1.05); }
+}
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+@keyframes grain-shift {
+  0%, 100% { transform: translate3d(0,0,0); }
+  50% { transform: translate3d(-1%, 1%, 0); }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+.animate-drift-a { animation: drift-a 22s var(--ease-soft) infinite; }
+.animate-drift-b { animation: drift-b 26s var(--ease-soft) infinite; }
+.animate-gradient-shift { animation: gradient-shift 8s ease-in-out infinite; background-size: 200% 200%; }
+.animate-pulse-soft { animation: pulse-soft 3.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-drift-a, .animate-drift-b, .animate-gradient-shift, .animate-pulse-soft {
+    animation: none !important;
+  }
+}
