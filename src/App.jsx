@@ -564,10 +564,11 @@ function StatCounter({ stat, reduced }) {
   );
 }
 
-function About() {
+function About({ reduced }) {
   return (
-    <section id="about" className="relative px-6 py-32 md:px-10 md:py-44">
-      <div className="mx-auto max-w-6xl">
+    <section id="about" className="relative isolate px-6 py-32 md:px-10 md:py-44">
+      {!reduced && <MoodBackdrop src="/mood/about-moodboard.jpg" objectPosition="center 25%" animated />}
+      <div className="relative mx-auto max-w-6xl">
         <motion.h2
           initial="hidden"
           whileInView="show"
@@ -738,24 +739,43 @@ function Services({ reduced }) {
 // ambient blobs use — texture and depth, not a second visual subject
 // competing with the real content in front of it.
 // ============================================================================
-function MoodBackdrop({ src, objectPosition = 'center' }) {
+function MoodBackdrop({ src, objectPosition = 'center', animated = false }) {
   // Full-bleed, not a small corner blob — at low opacity a small shape reads
   // as a smudge; the full frame at ~25% is what actually registers as "a
   // photo living behind the content" instead of just extra graphite.
-  // One settle-in on scroll, not an infinite loop (see note below on why
-  // this project keeps continuous ambient motion to just Hero + About).
+  //
+  // Settle-in (opacity/scale on scroll-into-view) and the optional
+  // continuous drift live on two different elements on purpose — a
+  // `whileInView` variant and an infinite `animate` loop both fighting over
+  // the same `scale` on one element is exactly the dual-control situation
+  // Framer Motion doesn't resolve predictably. The wrapper plays the
+  // one-time settle-in; the image inside it, only when `animated`, gets a
+  // slow, never-ending pan/breathe — same spirit as Hero's drifting blobs,
+  // just subtle enough here not to compete with real content in front of it.
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-      <motion.img
-        src={src}
-        alt=""
+      <motion.div
         initial={{ opacity: 0, scale: 1.12 }}
         whileInView={{ opacity: 0.26, scale: 1.04 }}
         viewport={{ once: true, margin: '-10%' }}
         transition={{ duration: 1.8, ease: EASE }}
-        style={{ objectPosition }}
-        className="h-full w-full object-cover blur-[5px] grayscale-[10%] saturate-[85%]"
-      />
+        className="h-full w-full"
+      >
+        <motion.img
+          src={src}
+          alt=""
+          animate={
+            animated
+              ? { scale: [1, 1.07, 1], x: ['0%', '-1.5%', '0.5%', '0%'], y: ['0%', '1%', '-1%', '0%'] }
+              : undefined
+          }
+          transition={
+            animated ? { duration: 26, repeat: Infinity, ease: 'easeInOut' } : undefined
+          }
+          style={{ objectPosition }}
+          className="h-full w-full object-cover blur-[5px] grayscale-[10%] saturate-[85%]"
+        />
+      </motion.div>
       {/* One soft gradient, not a stack — enough to protect text contrast
           top/bottom without crushing the image back to invisible. */}
       <div className="absolute inset-0 bg-gradient-to-b from-graphite/50 via-transparent to-graphite/80" />
@@ -835,12 +855,13 @@ function ProjectMedia({ media, title, videoRef, lazyAutoPlay, ...videoProps }) {
 // here on its own, separate from the product-ad showcase below, since it's
 // a different kind of work (a personal story, not a client commission).
 // ============================================================================
-function Agency() {
+function Agency({ reduced }) {
   // Video leads, then the title and story follow underneath — a premiere,
   // not a two-column feature block. Watch first, then read what it was.
   return (
-    <section id="agency" className="px-6 py-32 md:px-10 md:py-44">
-      <div className="mx-auto max-w-6xl">
+    <section id="agency" className="relative isolate px-6 py-32 md:px-10 md:py-44">
+      {!reduced && <MoodBackdrop src="/mood/agency-workspace.jpg" objectPosition="center 30%" animated />}
+      <div className="relative mx-auto max-w-6xl">
         <motion.a
           initial="hidden"
           whileInView="show"
@@ -915,7 +936,23 @@ function getCarouselConfig(width) {
   return { distanceDivisor: 200, velocityDivisor: 800, sensitivity: 250, xMultiplier: 170, yMultiplier: 40, rotationMultiplier: 12, scaleReduction: 0.12 };
 }
 
-function ShowcaseCard({ project, index, total, progress, config, videoRefs }) {
+// Carousel container height, matched to the card sizes in ShowcaseCard's
+// className (h-72/sm:h-96/lg:h-[26rem]) — `expanded` leaves enough headroom
+// for a card scaled up by EXPAND_SCALE to fit without clipping against
+// `overflow-hidden`, at each breakpoint.
+function getCarouselHeights(width) {
+  if (width < 640) return { normal: 320, expanded: 480 };
+  if (width < 1024) return { normal: 448, expanded: 640 };
+  return { normal: 512, expanded: 680 };
+}
+
+// How much bigger the centered card gets when tapped open. Kept as a scale
+// factor (not fixed pixel dimensions) so it stays proportional across
+// breakpoints and never distorts the card's aspect ratio.
+const EXPAND_SCALE = 1.5;
+const EXPAND_SPRING = { type: 'spring', stiffness: 200, damping: 26, mass: 1 };
+
+function ShowcaseCard({ project, index, total, progress, config, videoRefs, isExpanded, dimForExpand }) {
   const offset = useTransform(progress, (p) => {
     let diff = (index - p) % total;
     if (diff > total / 2) diff -= total;
@@ -940,60 +977,90 @@ function ShowcaseCard({ project, index, total, progress, config, videoRefs }) {
   const glowOpacity = useTransform(offset, [-1, 0, 1], [0, 1, 0]);
 
   return (
+    // Outer layer is position-only now — pure offset-driven carousel
+    // physics (x, rotate, y, edge-fade, stacking) as motion-value `style`,
+    // no visual chrome and no overflow-hidden. Its fixed size just gives it
+    // a "static position" to center against (see the flex-centered parent),
+    // nothing more.
     <motion.div
-      style={{ x, rotate, y, scale, opacity, zIndex }}
-      className="glass-panel absolute h-72 w-56 overflow-hidden rounded-2xl p-2 pointer-events-none sm:h-96 sm:w-72 sm:p-2.5 lg:h-[26rem] lg:w-80"
+      style={{ x, rotate, y, opacity, zIndex: isExpanded ? 90 : zIndex }}
+      className="absolute h-72 w-56 pointer-events-none sm:h-96 sm:w-72 lg:h-[26rem] lg:w-80"
     >
-      {/* Liquid-glass frame: a real gap between the card's glass edge and
-          the media inside it, so the backdrop-blur has something of its own
-          to show (the work backdrop + neighboring cards behind it) instead
-          of being fully covered edge-to-edge by opaque media. */}
+      {/* Expand layer carries the ACTUAL glass card — frame, padding,
+          background blur, all of it — plus the carousel's own
+          offset-based shrink-at-the-edges `scale`. Scaling this one element
+          is what keeps the media growing "inside" the glass card instead of
+          spilling past a frame that stayed behind at its old size. Sibling
+          cards get pushed back (scaled down + faded) while one is open, so
+          the open card reads as having come forward in front of them. */}
       <motion.div
-        style={{ opacity: glowOpacity }}
-        className="pointer-events-none absolute -inset-px z-10 rounded-2xl ring-1 ring-khaki-bright/50 shadow-[0_0_45px_rgba(194,183,161,0.3)]"
-      />
-      <div className="relative h-full w-full overflow-hidden rounded-xl">
-        <ProjectMedia
-          media={project.media}
-          title={project.title}
-          videoRef={(el) => {
-            videoRefs.current[index] = el;
-          }}
-          // Plain native attribute (not lazyAutoPlay — this card's play/pause
-          // is driven by which one is active in the carousel, not by
-          // scrolling). It's here purely so Low Power Mode gets a real
-          // tap-to-play fallback instead of a video that looks broken;
-          // Showcase pauses it back down on mount if it isn't the active
-          // card, so it doesn't just play in the background regardless.
-          autoPlay
+        style={{ scale }}
+        animate={{
+          scale: isExpanded ? EXPAND_SCALE : dimForExpand ? 0.82 : 1,
+          opacity: dimForExpand ? 0.35 : 1,
+        }}
+        transition={EXPAND_SPRING}
+        className="glass-panel relative h-full w-full rounded-2xl p-2 sm:p-2.5"
+      >
+        {/* Liquid-glass frame: a real gap between the card's glass edge and
+            the media inside it, so the backdrop-blur has something of its own
+            to show (the work backdrop + neighboring cards behind it) instead
+            of being fully covered edge-to-edge by opaque media. */}
+        <motion.div
+          style={{ opacity: glowOpacity }}
+          className="pointer-events-none absolute -inset-px z-10 rounded-2xl ring-1 ring-khaki-bright/50 shadow-[0_0_45px_rgba(194,183,161,0.3)]"
         />
+        <div className="relative h-full w-full overflow-hidden rounded-xl">
+          <ProjectMedia
+            media={project.media}
+            title={project.title}
+            videoRef={(el) => {
+              videoRefs.current[index] = el;
+            }}
+            // Plain native attribute (not lazyAutoPlay — this card's play/pause
+            // is driven by which one is active in the carousel, not by
+            // scrolling). It's here purely so Low Power Mode gets a real
+            // tap-to-play fallback instead of a video that looks broken;
+            // Showcase pauses it back down on mount if it isn't the active
+            // card, so it doesn't just play in the background regardless.
+            autoPlay
+          />
 
-        <motion.div style={{ opacity: dimOpacity }} className="absolute inset-0 bg-graphite" />
-        <div className="absolute inset-0 bg-gradient-to-t from-graphite/85 via-graphite/10 to-transparent" />
+          <motion.div style={{ opacity: dimOpacity }} className="absolute inset-0 bg-graphite" />
+          <div className="absolute inset-0 bg-gradient-to-t from-graphite/85 via-graphite/10 to-transparent" />
 
-        <span
-          className={`absolute top-3 right-3 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.15em] backdrop-blur-md ${
-            project.placeholder ? 'bg-ink/90 text-graphite' : 'bg-khaki text-graphite'
-          }`}
-        >
-          {project.placeholder ? 'Concept' : 'Client Work'}
-        </span>
-
-        <div className="absolute inset-x-4 bottom-5 sm:bottom-6">
-          <motion.p
-            style={{ opacity: textOpacity }}
-            className="text-[10px] uppercase tracking-[0.2em] text-khaki-bright"
+          {/* Badge and caption clear out on expand — this view is meant to
+              be just the media, not a card explaining itself. */}
+          <motion.span
+            animate={{ opacity: isExpanded ? 0 : 1 }}
+            transition={{ duration: 0.25 }}
+            className={`absolute top-3 right-3 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.15em] backdrop-blur-md ${
+              project.placeholder ? 'bg-ink/90 text-graphite' : 'bg-khaki text-graphite'
+            }`}
           >
-            {project.category}
-          </motion.p>
-          <motion.p
-            style={{ opacity: textOpacity }}
-            className="mt-1 text-base font-medium tracking-tight text-ink sm:text-lg"
+            {project.placeholder ? 'Concept' : 'Client Work'}
+          </motion.span>
+
+          <motion.div
+            animate={{ opacity: isExpanded ? 0 : 1 }}
+            transition={{ duration: 0.25 }}
+            className="absolute inset-x-4 bottom-5 sm:bottom-6"
           >
-            {project.title}
-          </motion.p>
+            <motion.p
+              style={{ opacity: textOpacity }}
+              className="text-[10px] uppercase tracking-[0.2em] text-khaki-bright"
+            >
+              {project.category}
+            </motion.p>
+            <motion.p
+              style={{ opacity: textOpacity }}
+              className="mt-1 text-base font-medium tracking-tight text-ink sm:text-lg"
+            >
+              {project.title}
+            </motion.p>
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
     </motion.div>
   );
 }
@@ -1013,6 +1080,11 @@ function Showcase({ reduced }) {
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== 'undefined' ? window.innerWidth : 1280
   );
+  // Whether the centered card is currently expanded — deliberately a plain
+  // boolean, not "which index," because dragging is disabled while this is
+  // true (see the drag layer below), so the active index can't drift out
+  // from under it while it's open.
+  const [expanded, setExpanded] = useState(false);
 
   const total = showcase.length;
 
@@ -1023,6 +1095,7 @@ function Showcase({ reduced }) {
   }, []);
 
   const config = useMemo(() => getCarouselConfig(windowWidth), [windowWidth]);
+  const heights = useMemo(() => getCarouselHeights(windowWidth), [windowWidth]);
 
   const playActive = () => {
     if (reduced) return;
@@ -1092,38 +1165,55 @@ function Showcase({ reduced }) {
           whileInView="show"
           viewport={{ once: true, margin: '-80px' }}
           variants={fadeUp}
-          data-cursor="Drag"
-          onMouseEnter={() => {
-            hoveringRef.current = true;
-            playActive();
-          }}
-          onMouseLeave={() => {
-            hoveringRef.current = false;
-            pauseAll();
-          }}
-          className="relative mt-16 flex h-80 select-none items-center justify-center overflow-hidden sm:h-[28rem] lg:h-[32rem]"
+          className="relative mt-16 select-none"
         >
+          {/* Height is animated separately from the fadeUp reveal above (a
+              plain `animate` target here, not mixed into that variant) so
+              the section can grow to fit the expanded card without
+              clipping, then settle back once it closes. */}
           <motion.div
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            onDragStart={handleDragStart}
-            onDrag={(_, info) => {
-              scrollProgress.set(scrollProgress.get() - info.delta.x / config.sensitivity);
+            animate={{ height: expanded ? heights.expanded : heights.normal }}
+            transition={EXPAND_SPRING}
+            data-cursor={expanded ? 'Close' : 'Drag'}
+            onMouseEnter={() => {
+              hoveringRef.current = true;
+              playActive();
             }}
-            onDragEnd={handleDragEnd}
-            className="absolute inset-0 z-40 cursor-grab active:cursor-grabbing"
-          />
-          {showcase.map((p, i) => (
-            <ShowcaseCard
-              key={p.id}
-              project={p}
-              index={i}
-              total={total}
-              progress={scrollProgress}
-              config={config}
-              videoRefs={videoRefs}
+            onMouseLeave={() => {
+              hoveringRef.current = false;
+              pauseAll();
+            }}
+            className="relative flex items-center justify-center overflow-hidden"
+          >
+            <motion.div
+              drag={expanded ? false : 'x'}
+              dragConstraints={{ left: 0, right: 0 }}
+              onDragStart={handleDragStart}
+              onDrag={(_, info) => {
+                scrollProgress.set(scrollProgress.get() - info.delta.x / config.sensitivity);
+              }}
+              onDragEnd={handleDragEnd}
+              // A tap (not a drag) opens the centered card up close; tapping
+              // again — same handler, same element — closes it. Framer
+              // Motion tells taps and drags apart on its own, so this never
+              // fires after an actual swipe.
+              onTap={() => setExpanded((v) => !v)}
+              className="absolute inset-0 z-40 cursor-grab active:cursor-grabbing"
             />
-          ))}
+            {showcase.map((p, i) => (
+              <ShowcaseCard
+                key={p.id}
+                project={p}
+                index={i}
+                total={total}
+                progress={scrollProgress}
+                config={config}
+                videoRefs={videoRefs}
+                isExpanded={expanded && i === activeIndexRef.current}
+                dimForExpand={expanded && i !== activeIndexRef.current}
+              />
+            ))}
+          </motion.div>
         </motion.div>
       </div>
     </section>
@@ -1377,8 +1467,8 @@ function App() {
         <Hero reduced={reduced} />
         <Motion />
         <Showcase reduced={reduced} />
-        <Agency />
-        <About />
+        <Agency reduced={reduced} />
+        <About reduced={reduced} />
         <Services reduced={reduced} />
         <Process reduced={reduced} />
         <Contact reduced={reduced} />
