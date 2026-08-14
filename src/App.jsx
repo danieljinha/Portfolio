@@ -940,23 +940,7 @@ function getCarouselConfig(width) {
   return { distanceDivisor: 200, velocityDivisor: 800, sensitivity: 250, xMultiplier: 170, yMultiplier: 40, rotationMultiplier: 12, scaleReduction: 0.12 };
 }
 
-// Carousel container height, matched to the card sizes in ShowcaseCard's
-// className (h-72/sm:h-96/lg:h-[26rem]) — `expanded` leaves enough headroom
-// for a card scaled up by EXPAND_SCALE to fit without clipping against
-// `overflow-hidden`, at each breakpoint.
-function getCarouselHeights(width) {
-  if (width < 640) return { normal: 320, expanded: 480 };
-  if (width < 1024) return { normal: 448, expanded: 640 };
-  return { normal: 512, expanded: 680 };
-}
-
-// How much bigger the centered card gets when tapped open. Kept as a scale
-// factor (not fixed pixel dimensions) so it stays proportional across
-// breakpoints and never distorts the card's aspect ratio.
-const EXPAND_SCALE = 1.5;
-const EXPAND_SPRING = { type: 'spring', stiffness: 200, damping: 26, mass: 1 };
-
-function ShowcaseCard({ project, index, total, progress, config, videoRefs, isExpanded, dimForExpand }) {
+function ShowcaseCard({ project, index, total, progress, config, videoRefs }) {
   const offset = useTransform(progress, (p) => {
     let diff = (index - p) % total;
     if (diff > total / 2) diff -= total;
@@ -981,102 +965,60 @@ function ShowcaseCard({ project, index, total, progress, config, videoRefs, isEx
   const glowOpacity = useTransform(offset, [-1, 0, 1], [0, 1, 0]);
 
   return (
-    // Outer layer is position-only now — pure offset-driven carousel
-    // physics (x, rotate, y, edge-fade, stacking) as motion-value `style`,
-    // no visual chrome and no overflow-hidden. Its fixed size just gives it
-    // a "static position" to center against (see the flex-centered parent),
-    // nothing more.
     <motion.div
-      style={{ x, rotate, y, opacity, zIndex: isExpanded ? 90 : zIndex }}
-      className="absolute h-72 w-56 pointer-events-none sm:h-96 sm:w-72 lg:h-[26rem] lg:w-80"
+      style={{ x, rotate, y, scale, opacity, zIndex }}
+      className="glass-panel absolute h-72 w-56 overflow-hidden rounded-2xl p-2 pointer-events-none sm:h-96 sm:w-72 sm:p-2.5 lg:h-[26rem] lg:w-80"
     >
-      {/* Expand layer carries the ACTUAL glass card — frame, padding,
-          background blur, all of it — plus the carousel's own
-          offset-based shrink-at-the-edges `scale`. Scaling this one element
-          is what keeps the media growing "inside" the glass card instead of
-          spilling past a frame that stayed behind at its old size. Sibling
-          cards get pushed back (scaled down + faded) while one is open, so
-          the open card reads as having come forward in front of them. */}
+      {/* Liquid-glass frame: a real gap between the card's glass edge and
+          the media inside it, so the backdrop-blur has something of its own
+          to show (the work backdrop + neighboring cards behind it) instead
+          of being fully covered edge-to-edge by opaque media. */}
       <motion.div
-        style={{ scale }}
-        animate={{
-          scale: isExpanded ? EXPAND_SCALE : dimForExpand ? 0.82 : 1,
-          opacity: dimForExpand ? 0.35 : 1,
-        }}
-        transition={EXPAND_SPRING}
-        className="glass-panel relative h-full w-full rounded-2xl p-2 sm:p-2.5"
-      >
-        {/* glass-panel's own background is deliberately translucent (that's
-            the point at rest — soft depth, the backdrop and neighboring
-            cards blurred through it). Expanded, that same translucency let
-            the now-smaller sibling cards show through the enlarged card.
-            This opaque layer sits above glass-panel's own background but
-            below the media, fading in only while expanded so the card
-            reads as fully solid with nothing bleeding through it. */}
-        <motion.div
-          animate={{ opacity: isExpanded ? 1 : 0 }}
-          transition={{ duration: 0.3 }}
-          className="pointer-events-none absolute inset-0 rounded-2xl bg-graphite-panel"
+        style={{ opacity: glowOpacity }}
+        className="pointer-events-none absolute -inset-px z-10 rounded-2xl ring-1 ring-khaki-bright/50 shadow-[0_0_45px_rgba(194,183,161,0.3)]"
+      />
+      <div className="relative h-full w-full overflow-hidden rounded-xl">
+        <ProjectMedia
+          media={project.media}
+          title={project.title}
+          videoRef={(el) => {
+            videoRefs.current[index] = el;
+          }}
+          // Plain native attribute (not lazyAutoPlay — this card's play/pause
+          // is driven by which one is active in the carousel, not by
+          // scrolling). It's here purely so Low Power Mode gets a real
+          // tap-to-play fallback instead of a video that looks broken;
+          // Showcase pauses it back down on mount if it isn't the active
+          // card, so it doesn't just play in the background regardless.
+          autoPlay
         />
-        {/* Liquid-glass frame: a real gap between the card's glass edge and
-            the media inside it, so the backdrop-blur has something of its own
-            to show (the work backdrop + neighboring cards behind it) instead
-            of being fully covered edge-to-edge by opaque media. */}
-        <motion.div
-          style={{ opacity: glowOpacity }}
-          className="pointer-events-none absolute -inset-px z-10 rounded-2xl ring-1 ring-khaki-bright/50 shadow-[0_0_45px_rgba(194,183,161,0.3)]"
-        />
-        <div className="relative h-full w-full overflow-hidden rounded-xl">
-          <ProjectMedia
-            media={project.media}
-            title={project.title}
-            videoRef={(el) => {
-              videoRefs.current[index] = el;
-            }}
-            // Plain native attribute (not lazyAutoPlay — this card's play/pause
-            // is driven by which one is active in the carousel, not by
-            // scrolling). It's here purely so Low Power Mode gets a real
-            // tap-to-play fallback instead of a video that looks broken;
-            // Showcase pauses it back down on mount if it isn't the active
-            // card, so it doesn't just play in the background regardless.
-            autoPlay
-          />
 
-          <motion.div style={{ opacity: dimOpacity }} className="absolute inset-0 bg-graphite" />
-          <div className="absolute inset-0 bg-gradient-to-t from-graphite/85 via-graphite/10 to-transparent" />
+        <motion.div style={{ opacity: dimOpacity }} className="absolute inset-0 bg-graphite" />
+        <div className="absolute inset-0 bg-gradient-to-t from-graphite/85 via-graphite/10 to-transparent" />
 
-          {/* Badge and caption clear out on expand — this view is meant to
-              be just the media, not a card explaining itself. */}
-          <motion.span
-            animate={{ opacity: isExpanded ? 0 : 1 }}
-            transition={{ duration: 0.25 }}
-            className={`absolute top-3 right-3 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.15em] backdrop-blur-md ${
-              project.placeholder ? 'bg-ink/90 text-graphite' : 'bg-khaki text-graphite'
-            }`}
+        <span
+          className={`absolute top-3 right-3 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.15em] backdrop-blur-md ${
+            project.placeholder ? 'bg-ink/90 text-graphite' : 'bg-khaki text-graphite'
+          }`}
+        >
+          {project.placeholder ? 'Concept' : 'Client Work'}
+        </span>
+
+        <div className="absolute inset-x-4 bottom-5 sm:bottom-6">
+          <motion.p
+            style={{ opacity: textOpacity }}
+            className="text-[10px] uppercase tracking-[0.2em] text-khaki-bright"
           >
-            {project.placeholder ? 'Concept' : 'Client Work'}
-          </motion.span>
-
-          <motion.div
-            animate={{ opacity: isExpanded ? 0 : 1 }}
-            transition={{ duration: 0.25 }}
-            className="absolute inset-x-4 bottom-5 sm:bottom-6"
+            {project.category}
+          </motion.p>
+          <motion.p
+            style={{ opacity: textOpacity }}
+            className="mt-1 text-base font-medium tracking-tight text-ink sm:text-lg"
           >
-            <motion.p
-              style={{ opacity: textOpacity }}
-              className="text-[10px] uppercase tracking-[0.2em] text-khaki-bright"
-            >
-              {project.category}
-            </motion.p>
-            <motion.p
-              style={{ opacity: textOpacity }}
-              className="mt-1 text-base font-medium tracking-tight text-ink sm:text-lg"
-            >
-              {project.title}
-            </motion.p>
-          </motion.div>
+            {project.title}
+          </motion.p>
         </div>
-      </motion.div>
+      </div>
     </motion.div>
   );
 }
@@ -1096,11 +1038,6 @@ function Showcase({ reduced }) {
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== 'undefined' ? window.innerWidth : 1280
   );
-  // Whether the centered card is currently expanded — deliberately a plain
-  // boolean, not "which index," because dragging is disabled while this is
-  // true (see the drag layer below), so the active index can't drift out
-  // from under it while it's open.
-  const [expanded, setExpanded] = useState(false);
 
   const total = showcase.length;
 
@@ -1111,7 +1048,6 @@ function Showcase({ reduced }) {
   }, []);
 
   const config = useMemo(() => getCarouselConfig(windowWidth), [windowWidth]);
-  const heights = useMemo(() => getCarouselHeights(windowWidth), [windowWidth]);
 
   const playActive = () => {
     if (reduced) return;
@@ -1181,55 +1117,38 @@ function Showcase({ reduced }) {
           whileInView="show"
           viewport={{ once: true, margin: '-80px' }}
           variants={fadeUp}
-          className="relative mt-16 select-none"
+          data-cursor="Drag"
+          onMouseEnter={() => {
+            hoveringRef.current = true;
+            playActive();
+          }}
+          onMouseLeave={() => {
+            hoveringRef.current = false;
+            pauseAll();
+          }}
+          className="relative mt-16 flex h-80 select-none items-center justify-center overflow-hidden sm:h-[28rem] lg:h-[32rem]"
         >
-          {/* Height is animated separately from the fadeUp reveal above (a
-              plain `animate` target here, not mixed into that variant) so
-              the section can grow to fit the expanded card without
-              clipping, then settle back once it closes. */}
           <motion.div
-            animate={{ height: expanded ? heights.expanded : heights.normal }}
-            transition={EXPAND_SPRING}
-            data-cursor={expanded ? 'Close' : 'Drag'}
-            onMouseEnter={() => {
-              hoveringRef.current = true;
-              playActive();
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            onDragStart={handleDragStart}
+            onDrag={(_, info) => {
+              scrollProgress.set(scrollProgress.get() - info.delta.x / config.sensitivity);
             }}
-            onMouseLeave={() => {
-              hoveringRef.current = false;
-              pauseAll();
-            }}
-            className="relative flex items-center justify-center overflow-hidden"
-          >
-            <motion.div
-              drag={expanded ? false : 'x'}
-              dragConstraints={{ left: 0, right: 0 }}
-              onDragStart={handleDragStart}
-              onDrag={(_, info) => {
-                scrollProgress.set(scrollProgress.get() - info.delta.x / config.sensitivity);
-              }}
-              onDragEnd={handleDragEnd}
-              // A tap (not a drag) opens the centered card up close; tapping
-              // again — same handler, same element — closes it. Framer
-              // Motion tells taps and drags apart on its own, so this never
-              // fires after an actual swipe.
-              onTap={() => setExpanded((v) => !v)}
-              className="absolute inset-0 z-40 cursor-grab active:cursor-grabbing"
+            onDragEnd={handleDragEnd}
+            className="absolute inset-0 z-40 cursor-grab active:cursor-grabbing"
+          />
+          {showcase.map((p, i) => (
+            <ShowcaseCard
+              key={p.id}
+              project={p}
+              index={i}
+              total={total}
+              progress={scrollProgress}
+              config={config}
+              videoRefs={videoRefs}
             />
-            {showcase.map((p, i) => (
-              <ShowcaseCard
-                key={p.id}
-                project={p}
-                index={i}
-                total={total}
-                progress={scrollProgress}
-                config={config}
-                videoRefs={videoRefs}
-                isExpanded={expanded && i === activeIndexRef.current}
-                dimForExpand={expanded && i !== activeIndexRef.current}
-              />
-            ))}
-          </motion.div>
+          ))}
         </motion.div>
       </div>
     </section>
