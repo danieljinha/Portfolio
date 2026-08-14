@@ -14,7 +14,9 @@ export const brand = {
   phone: '(647) 409-4646',
   // TODO(Daniel): swap in real profile links when ready — kept as graceful placeholders.
   socials: [
-    { label: 'Instagram', href: '#' },
+    { label: '@daniel_jinha', href: 'https://instagram.com/daniel_jinha' },
+    { label: '@refined.jc', href: 'https://instagram.com/refined.jc' },
+    // TODO(Daniel): swap in real LinkedIn / TikTok URLs when ready.
     { label: 'LinkedIn', href: '#' },
     { label: 'TikTok', href: '#' },
   ],
