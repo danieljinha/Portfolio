@@ -776,9 +776,13 @@ function MoodBackdrop({ src, objectPosition = 'center', animated = false }) {
           className="h-full w-full object-cover blur-[5px] grayscale-[10%] saturate-[85%]"
         />
       </motion.div>
-      {/* One soft gradient, not a stack — enough to protect text contrast
-          top/bottom without crushing the image back to invisible. */}
-      <div className="absolute inset-0 bg-gradient-to-b from-graphite/50 via-transparent to-graphite/80" />
+      {/* Fades all the way to fully-opaque graphite at both edges (not just
+          mostly-there at /50 and /80) so each section's backdrop dissolves
+          completely into the shared base background before the next
+          section's own backdrop starts — no hard image-to-image seam where
+          one section ends and the next begins, just a continuous dark field
+          with a photo breathing through the middle of each one. */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,theme(colors.graphite.DEFAULT)_0%,transparent_32%,transparent_68%,theme(colors.graphite.DEFAULT)_100%)]" />
     </div>
   );
 }
@@ -1002,6 +1006,18 @@ function ShowcaseCard({ project, index, total, progress, config, videoRefs, isEx
         transition={EXPAND_SPRING}
         className="glass-panel relative h-full w-full rounded-2xl p-2 sm:p-2.5"
       >
+        {/* glass-panel's own background is deliberately translucent (that's
+            the point at rest — soft depth, the backdrop and neighboring
+            cards blurred through it). Expanded, that same translucency let
+            the now-smaller sibling cards show through the enlarged card.
+            This opaque layer sits above glass-panel's own background but
+            below the media, fading in only while expanded so the card
+            reads as fully solid with nothing bleeding through it. */}
+        <motion.div
+          animate={{ opacity: isExpanded ? 1 : 0 }}
+          transition={{ duration: 0.3 }}
+          className="pointer-events-none absolute inset-0 rounded-2xl bg-graphite-panel"
+        />
         {/* Liquid-glass frame: a real gap between the card's glass edge and
             the media inside it, so the backdrop-blur has something of its own
             to show (the work backdrop + neighboring cards behind it) instead
