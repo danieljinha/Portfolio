@@ -19,7 +19,7 @@ export const agencyProject = {
   category: 'Motion Graphics · Documentary',
   description:
     'Pre-production motion graphic package for the TMU documentary I directed and produced, leading a four-person crew from pitch to final cut.',
-  media: { type: 'video', src: '/work/bsmma-motion-graphic.mp4' },
+  media: { type: 'video', src: '/work/bsmma-motion-graphic.mp4', poster: '/work/bsmma-poster.jpg' },
   link: '#',
 };
 
@@ -33,7 +33,11 @@ export const motionProject = {
   id: 'keyboard-3d-motion',
   title: 'Product Reveal, in Motion',
   category: 'Motion Graphics · 3D Product Animation',
-  media: { type: 'video', src: '/generated/keyboard-3d-motion.mp4' },
+  media: {
+    type: 'video',
+    src: '/generated/keyboard-3d-motion.mp4',
+    poster: '/generated/keyboard-3d-motion-poster.jpg',
+  },
   link: '#',
 };
 

@@ -424,6 +424,7 @@ function Hero({ reduced }) {
           ref={videoRef}
           className="absolute inset-0 h-full w-full object-cover"
           src="/hero/hero-video.mp4"
+          poster="/hero/hero-poster.jpg"
           autoPlay
           muted
           loop

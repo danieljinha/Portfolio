@@ -65,7 +65,11 @@ export const services = [
       'Video production — concept to delivery',
       'Content campaigns built around real client goals',
     ],
-    media: { type: 'video', src: '/work/media-marketing-reel.mp4' },
+    media: {
+      type: 'video',
+      src: '/work/media-marketing-reel.mp4',
+      poster: '/work/media-marketing-poster.jpg',
+    },
   },
   {
     id: 'ai-web-design',
