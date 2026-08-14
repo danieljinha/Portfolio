@@ -263,56 +263,132 @@ function Nav({ reduced }) {
   const width = useTransform(scrollYProgress, [0, 1], ['0%', '100%']);
   const magRef = useMagnetic({ radius: 70, strength: 0.3, disabled: reduced });
   const scrollToId = useScrollToId();
-  const go = (id) => scrollToId(id, reduced);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const go = (id) => {
+    setMenuOpen(false);
+    scrollToId(id, reduced);
+  };
+
+  // Lock background scroll while the mobile menu overlay is open.
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [menuOpen]);
 
   return (
-    // Centering (-translate-x-1/2) lives on this static wrapper, separate
-    // from the motion.div below — Framer Motion writes its own inline
-    // `transform` for the y/opacity entrance, which would otherwise clobber
-    // a Tailwind transform utility on the same element (inline style always
-    // wins over a class, regardless of specificity).
-    <header className="fixed top-5 left-1/2 z-50 -translate-x-1/2 w-[min(94%,880px)]">
-      <motion.div
-        initial={{ y: -40, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.8, delay: 1.1, ease: EASE }}
-      >
-      <div className="glass-panel relative flex items-center justify-between rounded-full px-5 py-2.5 md:px-7 md:py-3 overflow-hidden">
+    <>
+      {/* Centering (-translate-x-1/2) lives on this static wrapper, separate
+          from the motion.div below — Framer Motion writes its own inline
+          `transform` for the y/opacity entrance, which would otherwise
+          clobber a Tailwind transform utility on the same element (inline
+          style always wins over a class, regardless of specificity). */}
+      <header className="fixed top-5 left-1/2 z-50 -translate-x-1/2 w-[min(94%,880px)]">
         <motion.div
-          className="pointer-events-none absolute bottom-0 left-0 h-[1.5px] bg-khaki-bright"
-          style={{ width }}
-        />
-        <a
-          href="#top"
-          onClick={(e) => { e.preventDefault(); go('top'); }}
-          data-cursor="Home"
-          className="font-medium tracking-tight text-sm md:text-[15px] whitespace-nowrap"
+          initial={{ y: -40, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.8, delay: 1.1, ease: EASE }}
         >
-          Salt &amp; Light
-        </a>
-        <nav className="hidden md:flex items-center gap-6 text-[13px] text-ink-dim">
-          {NAV_LINKS.map((l) => (
+        <div className="glass-panel relative flex items-center justify-between rounded-full px-5 py-2.5 md:px-7 md:py-3 overflow-hidden">
+          <motion.div
+            className="pointer-events-none absolute bottom-0 left-0 h-[1.5px] bg-khaki-bright"
+            style={{ width }}
+          />
+          <a
+            href="#top"
+            onClick={(e) => { e.preventDefault(); go('top'); }}
+            data-cursor="Home"
+            className="font-medium tracking-tight text-sm md:text-[15px] whitespace-nowrap"
+          >
+            Salt &amp; Light
+          </a>
+          <nav className="hidden md:flex items-center gap-6 text-[13px] text-ink-dim">
+            {NAV_LINKS.map((l) => (
+              <button
+                key={l.id}
+                onClick={() => go(l.id)}
+                data-cursor="Go"
+                className="transition-colors duration-300 hover:text-ink"
+              >
+                {l.label}
+              </button>
+            ))}
+          </nav>
+          <div className="flex items-center gap-3">
+            {/* Mobile menu toggle — the nav list above is desktop-only
+                (hidden md:flex); below that breakpoint this is the only way
+                to reach any section besides scrolling by hand. */}
             <button
-              key={l.id}
-              onClick={() => go(l.id)}
-              data-cursor="Go"
-              className="transition-colors duration-300 hover:text-ink"
+              onClick={() => setMenuOpen((v) => !v)}
+              data-cursor={menuOpen ? 'Close' : 'Menu'}
+              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={menuOpen}
+              className="relative flex h-8 w-8 flex-col items-center justify-center gap-[5px] md:hidden"
             >
-              {l.label}
+              <motion.span
+                animate={{ rotate: menuOpen ? 45 : 0, y: menuOpen ? 5.5 : 0 }}
+                transition={{ duration: 0.3, ease: EASE }}
+                className="h-px w-5 bg-ink"
+              />
+              <motion.span
+                animate={{ opacity: menuOpen ? 0 : 1 }}
+                transition={{ duration: 0.2 }}
+                className="h-px w-5 bg-ink"
+              />
+              <motion.span
+                animate={{ rotate: menuOpen ? -45 : 0, y: menuOpen ? -5.5 : 0 }}
+                transition={{ duration: 0.3, ease: EASE }}
+                className="h-px w-5 bg-ink"
+              />
             </button>
-          ))}
-        </nav>
-        <a
-          ref={magRef}
-          href={`mailto:${brand.email}`}
-          data-cursor="Say hi"
-          className="rounded-full bg-khaki px-4 py-1.5 text-[13px] font-medium text-graphite transition-colors duration-300 hover:bg-khaki-bright whitespace-nowrap"
-        >
-          Let&rsquo;s talk
-        </a>
-      </div>
-      </motion.div>
-    </header>
+            <a
+              ref={magRef}
+              href={`mailto:${brand.email}`}
+              data-cursor="Say hi"
+              className="rounded-full bg-khaki px-4 py-1.5 text-[13px] font-medium text-graphite transition-colors duration-300 hover:bg-khaki-bright whitespace-nowrap"
+            >
+              Let&rsquo;s talk
+            </a>
+          </div>
+        </div>
+        </motion.div>
+      </header>
+
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3, ease: EASE }}
+            className="fixed inset-0 z-40 bg-graphite/98 backdrop-blur-md md:hidden"
+            onClick={() => setMenuOpen(false)}
+          >
+            <motion.nav
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
+              transition={{ duration: 0.4, delay: 0.05, ease: EASE }}
+              className="flex h-full flex-col items-center justify-center gap-1"
+            >
+              {NAV_LINKS.map((l) => (
+                <button
+                  key={l.id}
+                  onClick={() => go(l.id)}
+                  data-cursor="Go"
+                  className="py-3 font-serif text-4xl italic text-ink transition-colors duration-300 hover:text-khaki-bright"
+                >
+                  {l.label}
+                </button>
+              ))}
+            </motion.nav>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -689,11 +765,41 @@ function MoodBackdrop({ src, objectPosition = 'center' }) {
 // ============================================================================
 // SELECTED WORK — fully data-driven from ./data/projects.js.
 // ============================================================================
-function ProjectMedia({ media, title, videoRef, ...videoProps }) {
+function ProjectMedia({ media, title, videoRef, autoPlay, ...videoProps }) {
+  // `autoPlay` here does NOT mean the native <video autoplay> attribute —
+  // that made every ambient clip (Motion, both Services cards, Agency) start
+  // buffering the instant the page loaded, all at once, whether or not the
+  // section was anywhere near the viewport. On a phone over cellular that's
+  // ~50MB of simultaneous video requests before the visitor has scrolled a
+  // single section — several of them would stall and never actually start
+  // playing. Instead: play only once the clip is actually on screen, pause
+  // once it isn't. ShowcaseCard drives its own videos externally (via
+  // videoRef) and never passes autoPlay, so it's untouched by this.
+  const internalRef = useRef(null);
+
+  useEffect(() => {
+    if (!autoPlay || media.type !== 'video') return undefined;
+    const video = internalRef.current;
+    if (!video || typeof IntersectionObserver === 'undefined') return undefined;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) video.play().catch(() => {});
+        else video.pause();
+      },
+      { threshold: 0.25 }
+    );
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [autoPlay, media.type]);
+
   if (media.type === 'video') {
     return (
       <video
-        ref={videoRef}
+        ref={(el) => {
+          internalRef.current = el;
+          if (typeof videoRef === 'function') videoRef(el);
+          else if (videoRef) videoRef.current = el;
+        }}
         className="h-full w-full object-cover"
         src={media.src}
         poster={media.poster}
@@ -875,6 +981,12 @@ function Showcase({ reduced }) {
   const videoRefs = useRef({});
   const activeIndexRef = useRef(0);
   const hoveringRef = useRef(false);
+  // Hover-to-preview (the desktop interaction this carousel was built
+  // around) has no touch equivalent — mouseenter/mouseleave never fire on a
+  // phone, so every clip sat on its first frame forever with no way to
+  // trigger playback. On touch, skip the hover gate entirely: the centered
+  // card just plays, like the ambient video everywhere else on the site.
+  const isTouch = useIsTouchDevice();
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== 'undefined' ? window.innerWidth : 1280
   );
@@ -901,18 +1013,19 @@ function Showcase({ reduced }) {
   // Keep the playing card in sync with whichever one is centered, including
   // while the visitor is mid-drag (not just on enter/leave).
   useEffect(() => {
+    if (isTouch) playActive(); // no hover on touch — start the first card itself
     const unsubscribe = scrollProgress.on('change', (p) => {
       const normalized = ((Math.round(p) % total) + total) % total;
       if (normalized !== activeIndexRef.current) {
         const prevEl = videoRefs.current[activeIndexRef.current];
         if (prevEl) prevEl.pause();
         activeIndexRef.current = normalized;
-        if (hoveringRef.current) playActive();
+        if (hoveringRef.current || isTouch) playActive();
       }
     });
     return unsubscribe;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollProgress, total]);
+  }, [scrollProgress, total, isTouch]);
 
   const handleDragStart = () => {
     startProgress.current = scrollProgress.get();
