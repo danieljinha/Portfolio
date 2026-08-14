@@ -532,7 +532,7 @@ function Motion() {
             data-cursor="View"
             className="glass-panel group relative block aspect-video overflow-hidden rounded-2xl"
           >
-            <ProjectMedia media={motionProject.media} title={motionProject.title} autoPlay />
+            <ProjectMedia media={motionProject.media} title={motionProject.title} lazyAutoPlay />
             <div className="absolute inset-0 bg-gradient-to-t from-graphite/80 via-transparent to-transparent" />
             <div className="absolute inset-x-4 bottom-4 md:inset-x-6 md:bottom-6">
               <p className="text-[10px] uppercase tracking-[0.2em] text-khaki-bright">
@@ -643,7 +643,7 @@ function ServiceCard({ service, reduced }) {
           marketing. Gradient protects both the title (top) and the
           hover-revealed copy (bottom) while still letting the work show. */}
       <div className="absolute inset-0 -z-10">
-        <ProjectMedia media={service.media} title={service.title} autoPlay />
+        <ProjectMedia media={service.media} title={service.title} lazyAutoPlay />
         <div className="absolute inset-0 bg-gradient-to-b from-graphite/90 via-graphite/50 to-graphite/90" />
       </div>
       <div
@@ -765,32 +765,46 @@ function MoodBackdrop({ src, objectPosition = 'center' }) {
 // ============================================================================
 // SELECTED WORK — fully data-driven from ./data/projects.js.
 // ============================================================================
-function ProjectMedia({ media, title, videoRef, autoPlay, ...videoProps }) {
-  // `autoPlay` here does NOT mean the native <video autoplay> attribute —
-  // that made every ambient clip (Motion, both Services cards, Agency) start
-  // buffering the instant the page loaded, all at once, whether or not the
-  // section was anywhere near the viewport. On a phone over cellular that's
-  // ~50MB of simultaneous video requests before the visitor has scrolled a
-  // single section — several of them would stall and never actually start
-  // playing. Instead: play only once the clip is actually on screen, pause
-  // once it isn't. ShowcaseCard drives its own videos externally (via
-  // videoRef) and never passes autoPlay, so it's untouched by this.
+function ProjectMedia({ media, title, videoRef, lazyAutoPlay, ...videoProps }) {
+  // `lazyAutoPlay`: play once the clip is actually on screen, pause once it
+  // isn't — NOT the native <video autoplay> attribute fired blindly at
+  // mount, which made every ambient clip (Motion, both Services cards,
+  // Agency) start buffering the instant the page loaded, all at once,
+  // regardless of scroll position (~50MB of simultaneous requests before a
+  // visitor has scrolled a single section). ShowcaseCard drives its own
+  // video externally (via videoRef) and never passes this, so it's
+  // untouched.
+  //
+  // The `autoplay` HTML attribute is still kept ON the element (just with
+  // no `src` until it's actually in view) rather than relying purely on a
+  // scripted `.play()` call. That matters for one specific real case: under
+  // iOS Low Power Mode (or any autoplay-blocking situation), a scripted
+  // `.play()` with no declarative `autoplay` attribute just fails silently
+  // — the video sits there looking broken with no way to start it. With
+  // the attribute present, the browser instead falls back to its own
+  // native tap-to-play button, same as Hero already gets. Confirmed via a
+  // real device screen recording: Hero (has the attribute) showed a play
+  // button under Low Power Mode; these (didn't have it) showed nothing.
   const internalRef = useRef(null);
 
   useEffect(() => {
-    if (!autoPlay || media.type !== 'video') return undefined;
+    if (!lazyAutoPlay || media.type !== 'video') return undefined;
     const video = internalRef.current;
     if (!video || typeof IntersectionObserver === 'undefined') return undefined;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) video.play().catch(() => {});
-        else video.pause();
+        if (entry.isIntersecting) {
+          if (!video.src) video.src = media.src;
+          video.play().catch(() => {});
+        } else {
+          video.pause();
+        }
       },
       { threshold: 0.25 }
     );
     observer.observe(video);
     return () => observer.disconnect();
-  }, [autoPlay, media.type]);
+  }, [lazyAutoPlay, media.src, media.type]);
 
   if (media.type === 'video') {
     return (
@@ -801,12 +815,13 @@ function ProjectMedia({ media, title, videoRef, autoPlay, ...videoProps }) {
           else if (videoRef) videoRef.current = el;
         }}
         className="h-full w-full object-cover"
-        src={media.src}
+        src={lazyAutoPlay ? undefined : media.src}
         poster={media.poster}
+        autoPlay={lazyAutoPlay ? true : undefined}
         muted
         loop
         playsInline
-        preload="metadata"
+        preload={lazyAutoPlay ? 'none' : 'metadata'}
         {...videoProps}
       />
     );
@@ -834,7 +849,7 @@ function Agency() {
           data-cursor="View"
           className="glass-panel group relative block aspect-video overflow-hidden rounded-2xl"
         >
-          <ProjectMedia media={agencyProject.media} title={agencyProject.title} autoPlay />
+          <ProjectMedia media={agencyProject.media} title={agencyProject.title} lazyAutoPlay />
           <div className="absolute inset-0 bg-gradient-to-t from-graphite/85 via-transparent to-transparent" />
           <div className="absolute inset-x-4 bottom-4 md:inset-x-6 md:bottom-6">
             <p className="text-[10px] uppercase tracking-[0.2em] text-khaki-bright">
@@ -943,6 +958,13 @@ function ShowcaseCard({ project, index, total, progress, config, videoRefs }) {
           videoRef={(el) => {
             videoRefs.current[index] = el;
           }}
+          // Plain native attribute (not lazyAutoPlay — this card's play/pause
+          // is driven by which one is active in the carousel, not by
+          // scrolling). It's here purely so Low Power Mode gets a real
+          // tap-to-play fallback instead of a video that looks broken;
+          // Showcase pauses it back down on mount if it isn't the active
+          // card, so it doesn't just play in the background regardless.
+          autoPlay
         />
 
         <motion.div style={{ opacity: dimOpacity }} className="absolute inset-0 bg-graphite" />
@@ -1013,6 +1035,15 @@ function Showcase({ reduced }) {
   // Keep the playing card in sync with whichever one is centered, including
   // while the visitor is mid-drag (not just on enter/leave).
   useEffect(() => {
+    // The showcase video now carries a native `autoplay` attribute (see
+    // ProjectMedia) so Low Power Mode gets a real tap-to-play fallback
+    // instead of a silently-broken clip — but that means the browser may
+    // try to play it the moment it can, regardless of which card is
+    // actually centered. Pause anything not active before anything else,
+    // so autoplay only ever "wins" for the card that's supposed to play.
+    Object.entries(videoRefs.current).forEach(([idx, el]) => {
+      if (el && Number(idx) !== activeIndexRef.current) el.pause();
+    });
     if (isTouch) playActive(); // no hover on touch — start the first card itself
     const unsubscribe = scrollProgress.on('change', (p) => {
       const normalized = ((Math.round(p) % total) + total) % total;
